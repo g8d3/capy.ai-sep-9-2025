@@ -1,0 +1,95 @@
+version: "3.9"
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    ports:
+      - "6379:6379"
+
+  backend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.backend
+    environment:
+      APP_ENV: production
+      DATABASE_URL: postgresql+psycopg2://postgres:postgres@postgres:5432/postgres
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: supersecret
+      JWT_EXPIRE_MIN: 30
+      JWT_REFRESH_EXPIRE_DAYS: 14
+      CORS_ORIGINS: http://localhost:5173,http://localhost:3000,http://frontend
+      BINANCE_MARKET: spot
+      CCXT_RATE_LIMIT_MS: 500
+    volumes:
+      - data:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.backend
+    command: ["python", "-u", "worker/worker.py"]
+    environment:
+      APP_ENV: production
+      DATABASE_URL: postgresql+psycopg2://postgres:postgres@postgres:5432/postgres
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: supersecret
+      BINANCE_MARKET: spot
+      CCXT_RATE_LIMIT_MS: 500
+    volumes:
+      - data:/data
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.frontend
+      args:
+        - VITE_API_BASE_URL=http://localhost:8000
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "5173:80"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:
+  data:
