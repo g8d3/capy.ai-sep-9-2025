@@ -17,8 +17,9 @@ class Price(Base):
     c: Mapped[float] = mapped_column(Numeric(20, 10), nullable=False)
     v: Mapped[float] = mapped_column(Numeric(28, 10), nullable=False)
 
+    __table_args__ = (
+        Index("ix_price_asset_time_ts", "asset_id", "timeframe", "ts"),
+        UniqueConstraint("asset_id", "timeframe", "ts", name="uq_price_asset_time_ts"),
+    )
+
     asset = relationship("Asset", back_populates="prices")
-
-
-Index("ix_price_asset_time_ts", Price.asset_id, Price.timeframe, Price.ts)
-UniqueConstraint(Price.asset_id, Price.timeframe, Price.ts, name="uq_price_asset_time_ts")
