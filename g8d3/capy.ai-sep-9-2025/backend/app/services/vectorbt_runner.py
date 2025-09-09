@@ -4,7 +4,7 @@ from typing import Dict, Any, Tuple
 import os
 import pandas as pd
 import numpy as np
-import pandas_ta as ta
+
 import vectorbt as vbt
 
 
@@ -42,6 +42,17 @@ def compute_metrics_from_equity(equity: pd.Series, freq: str) -> Dict[str, float
     }
 
 
+def rsi_ewm(close: pd.Series, period: int) -> pd.Series:
+    delta = close.diff()
+    up = delta.clip(lower=0)
+    down = -delta.clip(upper=0)
+    roll_up = up.ewm(alpha=1/period, adjust=False, min_periods=period).mean()
+    roll_down = down.ewm(alpha=1/period, adjust=False, min_periods=period).mean()
+    rs = roll_up / roll_down
+    rsi = 100 - (100 / (1 + rs))
+    return rsi
+
+
 def run_rsi_threshold(
     dfs: Dict[str, pd.DataFrame],
     timeframe: str,
@@ -63,7 +74,7 @@ def run_rsi_threshold(
         if df.empty:
             continue
         close = df["close"].copy()
-        rsi = ta.rsi(close, length=period)
+        rsi = rsi_ewm(close, period)
         entries = rsi < lower
         exits = rsi > upper
 
