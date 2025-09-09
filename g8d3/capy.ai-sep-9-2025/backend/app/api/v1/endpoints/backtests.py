@@ -10,7 +10,7 @@ from datetime import datetime, timezone, timedelta
 from app.db.session import get_db
 from app.core.security import get_current_user
 from app.models import Backtest, BacktestStatus, BacktestAsset, Asset, User
-from app.schemas.backtest import BacktestCreate, BacktestRead, BacktestList, BacktestEnqueueResponse
+from app.schemas.backtest import BacktestCreate, BacktestRead, BacktestList, BacktestEnqueueResponse, BacktestDetail, BacktestAssetMetrics
 from app.services.jobs import enqueue_backtest
 from app.services import data_store
 
@@ -91,12 +91,21 @@ def create_backtest(
     return BacktestEnqueueResponse(id=bt.id, job_id=job_id)
 
 
-@router.get("/{backtest_id}", response_model=BacktestRead)
+@router.get("/{backtest_id}", response_model=BacktestDetail)
 def get_backtest(backtest_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     bt = db.get(Backtest, backtest_id)
     if not bt or bt.owner_id != user.id:
         raise HTTPException(status_code=404, detail="Not found")
-    return bt
+    # Build asset metrics list
+    items = []
+    for ba in db.scalars(select(BacktestAsset).where(BacktestAsset.backtest_id == bt.id)).all():
+        asset = db.get(Asset, ba.asset_id)
+        if not asset:
+            continue
+        items.append(BacktestAssetMetrics(asset_id=asset.id, exchange_symbol=asset.exchange_symbol, metrics=ba.metrics or {}))
+    data = BacktestDetail.model_validate(bt)
+    data.assets = items
+    return data
 
 
 @router.get("/", response_model=BacktestList)

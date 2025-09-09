@@ -31,6 +31,16 @@ class BacktestRead(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class BacktestAssetMetrics(BaseModel):
+    asset_id: int
+    exchange_symbol: str
+    metrics: dict
+
+
+class BacktestDetail(BacktestRead):
+    assets: List[BacktestAssetMetrics] = []
+
+
 class BacktestList(BaseModel):
     total: int
     items: List[BacktestRead]
