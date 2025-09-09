@@ -1,0 +1,2 @@
+Alembic migrations for initial schema. Run with:
+  alembic -c app/db/migrations/alembic.ini upgrade head
